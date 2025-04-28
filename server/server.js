@@ -8,26 +8,24 @@ import path from "path";
 dotenv.config();
 
 const app = express();
-const port = process.env.PORT || 5000;
+const port = process.env.port || 5000;
+const __dirname = path.resolve()
 
-connectDB();
+connectDB().then(r => {});
 
 app.use(cors());
 app.use(express.json());
-
-// Serve static files from client/dist
-const __dirname = path.resolve();
-app.use(express.static(path.join(__dirname, '../client/dist')));
-
 app.use('/api', apiRoutes);
+// Serve static files from client/dist
+app.use(express.static(path.join(__dirname, '/client/dist')));
 
 // Serve frontend for all other routes (SPA)
 app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, '../client/dist', 'index.html'));
+    res.sendFile(path.join(__dirname, 'client', 'dist', 'index.html'));
 });
 
 app.listen(port, () => {
-    console.log(`Server running at http://localhost:${port}`);
+    console.log(`Server running at http://localhost:${port}`)
 });
 
 export default app
