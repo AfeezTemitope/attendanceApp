@@ -1,0 +1,131 @@
+### Attendance API – sample requests (JetBrains HTTP Client: IntelliJ, WebStorm…)
+### Click the ▶ next to each request, top to bottom. Tokens are captured automatically.
+### Start the API first: `npm run dev` (and optionally `npm run seed`).
+
+@base = http://localhost:5000/api/v1
+
+### Health
+GET http://localhost:5000/api/health
+
+### 1. Register an organization (creates you as OWNER)
+POST {{base}}/auth/register
+Content-Type: application/json
+
+{
+  "organization": { "name": "Sample Academy", "type": "SCHOOL", "timezone": "Africa/Lagos" },
+  "user": { "name": "Sample Owner", "email": "owner@sample.test", "password": "change-me-please" }
+}
+
+> {% client.global.set("accessToken", response.body.data.accessToken); %}
+
+### 1b. …or log in (seeded demo: demo@attendance.local / demo-password-123)
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{ "email": "owner@sample.test", "password": "change-me-please" }
+
+> {% client.global.set("accessToken", response.body.data.accessToken); %}
+
+### Who am I
+GET {{base}}/auth/me
+Authorization: Bearer {{accessToken}}
+
+### Refresh the access token (uses the httpOnly cookie the client stored)
+POST {{base}}/auth/refresh
+X-Requested-With: XMLHttpRequest
+
+> {% client.global.set("accessToken", response.body.data.accessToken); %}
+
+### 2. Add a member (code auto-generated when omitted)
+POST {{base}}/members
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{ "fullName": "Chidi Okeke", "code": "STF-001", "group": "JSS 1" }
+
+> {% client.global.set("memberId", response.body.data.id); %}
+
+### Bulk import
+POST {{base}}/members/import
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "members": [
+    { "fullName": "Ngozi Eze", "group": "JSS 1" },
+    { "fullName": "Bayo Ade", "group": "JSS 2", "code": "STF-002" }
+  ]
+}
+
+### List members
+GET {{base}}/members?status=ACTIVE&page=1&limit=50
+Authorization: Bearer {{accessToken}}
+
+### 3. Register a kiosk device (the token is shown once)
+POST {{base}}/kiosks
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{ "name": "Front gate" }
+
+> {% client.global.set("kioskToken", response.body.data.token); %}
+
+### Kiosk: session info for the check-in screen
+GET {{base}}/kiosk/session
+Authorization: Kiosk {{kioskToken}}
+
+### Kiosk: check in by code
+### (school default window is 07:00–08:30 Lagos time on weekdays; outside it you get 422 WINDOW_CLOSED)
+POST {{base}}/kiosk/check-in
+Authorization: Kiosk {{kioskToken}}
+Content-Type: application/json
+
+{ "method": "CODE", "code": "STF-001" }
+
+### Widen the window while testing (FLEXIBLE_HOURS = check-in any time after opensAt)
+PUT {{base}}/organization/policy
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{ "kind": "FLEXIBLE_HOURS", "workDays": [1, 2, 3, 4, 5, 6, 7], "opensAt": "00:00", "lateAfter": "08:00", "allowCheckOut": true }
+
+### 4. Today's attendance
+GET {{base}}/attendance/daily
+Authorization: Bearer {{accessToken}}
+
+### Manual correction (forgot to check in)
+POST {{base}}/attendance/manual
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{ "memberId": "{{memberId}}", "date": "2026-09-28", "status": "PRESENT", "note": "Signed the paper register" }
+
+### 5. Holidays and terms
+POST {{base}}/holidays
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{ "date": "2026-10-01", "name": "Independence Day" }
+
+###
+POST {{base}}/periods
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{ "name": "1st Term 2026/27", "type": "TERM", "startsOn": "2026-09-14", "endsOn": "2026-12-18" }
+
+> {% client.global.set("periodId", response.body.data.id); %}
+
+### 6. Reports – JSON
+GET {{base}}/reports/attendance?periodId={{periodId}}
+Authorization: Bearer {{accessToken}}
+
+### Reports – Excel (saved next to this file as attendance-report.xlsx)
+GET {{base}}/reports/attendance?periodId={{periodId}}&format=xlsx
+Authorization: Bearer {{accessToken}}
+
+>>! attendance-report.xlsx
+
+### Logout
+POST {{base}}/auth/logout
+X-Requested-With: XMLHttpRequest
