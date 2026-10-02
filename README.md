@@ -70,7 +70,7 @@ Then set at least:
 | `MONGO_URI`         | `mongodb://127.0.0.1:27017/attendance` locally, or your Atlas connection string                                      |
 | `JWT_ACCESS_SECRET` | A long random string. Generate one: `node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"` |
 
-`.env` is gitignored. Only `.env.example` is committed. The API validates the environment at startup and exits with a clear message if something is missing.
+Use a **new database name** for v2 (e.g. `attendance_v2`), not the one v1 used: v1 left unique indexes in the `users` collection that block v2 sign-ups. The API checks for this at startup and tells you if it finds them. `.env` is gitignored. Only `.env.example` is committed. The API validates the environment at startup and exits with a clear message if something is missing.
 
 <details>
 <summary>All environment variables</summary>
@@ -388,17 +388,18 @@ Notes:
 
 ## Troubleshooting
 
-| Symptom                                      | Fix                                                                                                       |
-| -------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `Invalid environment configuration` on start | `apps/api/.env` is missing or incomplete. Copy it from `.env.example`                                     |
-| `Could not connect to MongoDB`               | Is MongoDB running? Is `MONGO_URI` right? For Atlas, is your IP allowed?                                  |
-| Tests hang on first run                      | The MongoDB test binary is downloading. Wait, or use `MONGO_TEST_URI`                                     |
-| Line-ending noise in `git diff` on Windows   | `.gitattributes` enforces LF. Run `git add --renormalize .` once                                          |
-| `EADDRINUSE :5000`                           | Another process uses the port. Change `PORT` in `apps/api/.env` and `API_PROXY_TARGET` in `apps/web/.env` |
-| Web app says "Cannot reach the server"       | Is the API running? `npm run dev` starts both; check the `api` lines in the terminal                      |
-| Kiosk camera does not start                  | The page must be on HTTPS (or localhost), with camera permission allowed for the site                     |
-| Signed out on every reload in production     | The API is on a different site from the web app. Use the Vercel rewrite (see Deployment)                  |
-| `EBADENGINE` warnings on install             | Node is older than 22.22. Install Node 24 LTS                                                             |
+| Symptom                                            | Fix                                                                                                                 |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `Database "…" cannot be used by this app` on start | The database still holds v1 data. Point `MONGO_URI` at a new database (e.g. `…/attendance_v2`), then `npm run seed` |
+| `Invalid environment configuration` on start       | `apps/api/.env` is missing or incomplete. Copy it from `.env.example`                                               |
+| `Could not connect to MongoDB`                     | Is MongoDB running? Is `MONGO_URI` right? For Atlas, is your IP allowed?                                            |
+| Tests hang on first run                            | The MongoDB test binary is downloading. Wait, or use `MONGO_TEST_URI`                                               |
+| Line-ending noise in `git diff` on Windows         | `.gitattributes` enforces LF. Run `git add --renormalize .` once                                                    |
+| `EADDRINUSE :5000`                                 | Another process uses the port. Change `PORT` in `apps/api/.env` and `API_PROXY_TARGET` in `apps/web/.env`           |
+| Web app says "Cannot reach the server"             | Is the API running? `npm run dev` starts both; check the `api` lines in the terminal                                |
+| Kiosk camera does not start                        | The page must be on HTTPS (or localhost), with camera permission allowed for the site                               |
+| Signed out on every reload in production           | The API is on a different site from the web app. Use the Vercel rewrite (see Deployment)                            |
+| `EBADENGINE` warnings on install                   | Node is older than 22.22. Install Node 24 LTS                                                                       |
 
 ---
 

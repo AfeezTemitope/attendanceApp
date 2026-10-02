@@ -2,7 +2,7 @@ import { toAppConfig } from './config/app-config.js';
 import { loadDotEnvFile, loadEnv } from './config/env.js';
 import { createApp } from './app.js';
 import { createContainer } from './container.js';
-import { connectDatabase, disconnectDatabase } from './core/db/connect.js';
+import { connectDatabase, DatabaseSetupError, disconnectDatabase } from './core/db/connect.js';
 import { createLogger } from './core/logger.js';
 
 loadDotEnvFile();
@@ -17,10 +17,14 @@ process.on('unhandledRejection', (reason) => {
 try {
   await connectDatabase(env.MONGO_URI, logger);
 } catch (error) {
-  logger.fatal(
-    { reason: error instanceof Error ? error.message : String(error) },
-    'Could not connect to MongoDB. Is it running, and is MONGO_URI in apps/api/.env correct?',
-  );
+  if (error instanceof DatabaseSetupError) {
+    logger.fatal(error.message);
+  } else {
+    logger.fatal(
+      { reason: error instanceof Error ? error.message : String(error) },
+      'Could not connect to MongoDB. Is it running, and is MONGO_URI in apps/api/.env correct?',
+    );
+  }
   process.exit(1);
 }
 

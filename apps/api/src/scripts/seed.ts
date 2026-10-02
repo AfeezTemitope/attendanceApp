@@ -6,7 +6,7 @@
 import { toAppConfig } from '../config/app-config.js';
 import { loadDotEnvFile, loadEnv } from '../config/env.js';
 import { createContainer } from '../container.js';
-import { connectDatabase, disconnectDatabase } from '../core/db/connect.js';
+import { connectDatabase, DatabaseSetupError, disconnectDatabase } from '../core/db/connect.js';
 import { createLogger } from '../core/logger.js';
 import { eachDate, toInstant, toLocalDate } from '../core/time/local-date.js';
 import { AttendanceRecordModel } from '../modules/attendance/attendance-record.model.js';
@@ -133,7 +133,7 @@ async function main(): Promise<void> {
 
 main()
   .catch((error: unknown) => {
-    console.error(error);
+    console.error(error instanceof DatabaseSetupError ? error.message : error);
     process.exitCode = 1;
   })
   .finally(() => disconnectDatabase());
