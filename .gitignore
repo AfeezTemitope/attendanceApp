@@ -24,3 +24,7 @@ Thumbs.db
 
 # Files saved by docs/api.http
 docs/*.xlsx
+
+# Installer scripts and screenshots in the repo root (kept locally, never committed)
+/*.sh
+/*.png

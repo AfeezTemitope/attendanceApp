@@ -2,9 +2,12 @@
 
 Multi-tenant attendance for schools and companies. An organisation signs up, adds the people it tracks (students, staff, employees), registers check-in devices, and gets daily dashboards plus monthly / term / session reports as Excel or CSV.
 
-> **Status:** v2 rebuild in progress.
-> **Phase 1 (this commit): API** – complete and tested.
-> **Phase 2: web app** (React + Vite + TypeScript) – replaces the legacy `client/` folder. Until then, use the API directly (see [`docs/api.http`](docs/api.http)).
+> **Status:** v2. **Phase 1: API** and **Phase 2: web app (Rollcall)** are complete and tested. The legacy `server/` and `client/` folders are gone.
+
+The web app has two faces:
+
+- **Dashboard** for owners, admins and viewers: today's live register, people (with CSV import and QR ID cards), reports with an on-screen register grid and Excel/CSV downloads, and settings.
+- **Check-in device** (kiosk) for a tablet or phone at the gate: a big clock, a keypad for codes, and ID-card scanning with the camera.
 
 ---
 
@@ -22,13 +25,15 @@ Multi-tenant attendance for schools and companies. An organisation signs up, add
 | Bearer tokens logged on every request; internal errors sent to clients           | Headers and bodies are never logged; errors are mapped to safe responses                       |
 | One login per organisation, no roles                                             | Many team members per organisation with `OWNER` / `ADMIN` / `VIEWER` roles                     |
 | JWT in localStorage for 1 h, no refresh, no logout                               | 15-min access token + rotating httpOnly refresh cookie with theft detection                    |
+| Frontend hardcoded `localhost:5000`, stored the string "undefined" as a token    | Typed API client on a same-origin `/api` path; access token in memory with silent refresh      |
 
 ---
 
 ## Tech stack
 
-**API:** Node.js 22+, TypeScript (strict), Express 5, MongoDB + Mongoose 9, Zod 4, Pino, Helmet, express-rate-limit, Luxon (timezones), ExcelJS.
-**Quality:** Vitest + Supertest + mongodb-memory-server, ESLint (typescript-eslint), Prettier, GitHub Actions.
+**API:** Node.js 22.22+, TypeScript (strict), Express 5, MongoDB + Mongoose 9, Zod 4, Pino, Helmet, express-rate-limit, Luxon (timezones), ExcelJS.
+**Web:** React 19, Vite 8, React Router 8, TanStack Query 5, Tailwind CSS 4, React Hook Form + Zod, Sonner, Lucide icons, `barcode-detector` (QR scanning), `qrcode` (ID cards and pairing codes).
+**Quality:** Vitest (Supertest + mongodb-memory-server for the API; jsdom + Testing Library for the web), ESLint (typescript-eslint, React Hooks, React Refresh), Prettier, GitHub Actions.
 
 ---
 
@@ -36,7 +41,7 @@ Multi-tenant attendance for schools and companies. An organisation signs up, add
 
 ### 1. Prerequisites
 
-- **Node.js 22.12 or newer** (`node -v`). Node 24 LTS works too.
+- **Node.js 22.22 or newer** (`node -v`). **Node 24 LTS is recommended.** React Router 8 needs 22.22+, so an older Node 22 prints engine warnings.
 - **MongoDB**, any of:
   - [MongoDB Atlas](https://www.mongodb.com/atlas) free tier (easiest on Windows),
   - a local MongoDB Community install,
@@ -86,14 +91,26 @@ Then set at least:
 
 </details>
 
+The web app needs **no env file in development**: Vite forwards `/api` to `http://localhost:5000`. Only if your API runs on another port, create `apps/web/.env` from `apps/web/.env.example` and set `API_PROXY_TARGET`.
+
 ### 4. Run
 
 ```bash
-npm run dev      # API with hot reload → http://localhost:5000/api/health
 npm run seed     # optional: demo school, 24 students, a kiosk, 4 weeks of history
+npm run dev      # API on :5000 and web app on :5173, together
 ```
 
-The seed prints a dashboard login and a kiosk token. Then open [`docs/api.http`](docs/api.http) in IntelliJ / WebStorm and click through the requests (tokens are captured automatically). In VS Code’s REST Client the requests work too, but copy tokens by hand.
+Open **http://localhost:5173** and sign in with the login the seed prints (`demo@attendance.local` / `demo-password-123`).
+
+To try the check-in screen with the seeded device, open `http://localhost:5173/kiosk/pair#token=<kiosk token from the seed>`. For a real device:
+
+1. **Settings → Check-in devices → Add device** (e.g. "Main gate tablet").
+2. On the tablet, scan the QR code shown, or open the link. The tablet switches to the check-in screen and stays paired.
+3. Optional: **People → ID card** prints a card with a QR code. People then scan the card instead of typing their code.
+
+The camera only works on **HTTPS** or `localhost`. On a school gate, lock the tablet to the page: Android "App pinning" or iPad "Guided Access".
+
+The API is also documented request by request in [`docs/api.http`](docs/api.http) (IntelliJ / WebStorm HTTP client; VS Code REST Client works with tokens copied by hand).
 
 ---
 
@@ -101,16 +118,17 @@ The seed prints a dashboard login and a kiosk token. Then open [`docs/api.http`]
 
 Run from the repo root.
 
-| Command                           | Does                                      |
-| --------------------------------- | ----------------------------------------- |
-| `npm run dev`                     | Start the API with hot reload (tsx watch) |
-| `npm run seed`                    | Create demo data (safe to re-run)         |
-| `npm test`                        | Run all tests                             |
-| `npm run typecheck`               | Type-check without emitting               |
-| `npm run lint` / `lint:fix`       | ESLint                                    |
-| `npm run format` / `format:check` | Prettier                                  |
-| `npm run build`                   | Compile the API to `apps/api/dist`        |
-| `npm start`                       | Run the compiled API (production)         |
+| Command                           | Does                                                                  |
+| --------------------------------- | --------------------------------------------------------------------- |
+| `npm run dev`                     | API (hot reload) and web app (Vite) together                          |
+| `npm run dev:api` / `dev:web`     | Just one of them                                                      |
+| `npm run seed`                    | Create demo data (safe to re-run)                                     |
+| `npm test`                        | All tests, both workspaces                                            |
+| `npm run typecheck`               | Type-check both workspaces                                            |
+| `npm run lint` / `lint:fix`       | ESLint                                                                |
+| `npm run format` / `format:check` | Prettier                                                              |
+| `npm run build`                   | Compile the API to `apps/api/dist` and the web app to `apps/web/dist` |
+| `npm start`                       | Run the compiled API (production)                                     |
 
 ---
 
@@ -171,6 +189,42 @@ They're used where the domain genuinely has variants. Elsewhere the code uses pl
 | `kiosks`              | Registered check-in devices (token hash only)                                                                         |
 
 **Absences are derived, never stored:** expected days = work days − holidays, within the member's active span (from `joinedOn`, until `archivedOn`), up to yesterday. Absences = expected days − attended days. Today is never counted as an absence while it is still in progress.
+
+---
+
+## Web app (`apps/web`)
+
+```
+apps/web/src
+├── app/          route table, providers, query client, product name (brand.ts)
+├── api/          typed endpoints, response types, query keys
+├── lib/          HTTP client hierarchy, ApiError, date formatting, downloads
+├── components/   ui/ primitives (button, dialog, register mark…) and layout/ (app shell)
+├── features/
+│   ├── auth/      session provider, route guards, sign in, sign up
+│   ├── today/     live daily register and admin corrections
+│   ├── people/    list, add/edit, CSV import, QR ID cards, person history
+│   ├── reports/   period reports, on-screen register grid, Excel/CSV download
+│   ├── settings/  organisation, attendance rules, holidays, terms, devices, team
+│   └── kiosk/     check-in device: pairing, clock + keypad, QR scanner
+└── test/         jsdom setup, fetch double, render helper
+```
+
+Decisions worth knowing:
+
+- **Sessions.** The access token lives in memory only, never in localStorage. When a request returns 401, `SessionHttpClient` refreshes with the httpOnly cookie and retries once. Concurrent 401s share a single refresh, because the API rotates the refresh token on every use and would otherwise treat the second one as theft.
+- **One HTTP base class, two subclasses.** `HttpClient` handles URLs, JSON, envelopes and errors. `SessionHttpClient` (dashboard) and `KioskHttpClient` (device) differ only in how they authenticate and how they react to 401: refresh, or unpair the device.
+- **Same-origin API.** The browser always calls `/api/v1`. Vite proxies it in development, and Vercel rewrites it in production. The refresh cookie stays first-party and CORS never comes into play.
+- **The kiosk is a device, not a user.** It sits outside the dashboard session and holds a revocable device token that can only check people in or out.
+  - The pairing link carries the token in the URL fragment (`#token=`), which browsers never send to servers, and the page removes it from the address bar after pairing.
+  - When an admin removes the device, its next request gets 401 and it returns to the pairing screen.
+- **QR scanning** uses the browser's native `BarcodeDetector` where available, and otherwise a WebAssembly decoder that ships with the app, so scanning does not depend on a CDN.
+- **Code splitting.** The forms (Zod, React Hook Form), the people/reports/settings pages and the kiosk with its decoder load on demand. A signed-in admin downloads about 100 KB of JavaScript (gzipped) to see today's register.
+- **Design.** The look is modelled on a class register:
+  - Ink-blue text on white paper, with ruled rows.
+  - Ticks for present, and red-pen red reserved for absences and destructive actions.
+  - Typefaces are Bricolage Grotesque and Hanken Grotesk, self-hosted.
+  - The product name "Rollcall" is one constant in `src/app/brand.ts`.
 
 ---
 
@@ -278,11 +332,13 @@ All times are wall-clock times in the **organisation's timezone** (default `Afri
 npm test
 ```
 
+**API**
+
 - **Unit tests:** policies, timezone maths, error mapping, exporters.
 - **Integration tests:** the real HTTP stack against a real MongoDB. There is a regression test for every v1 bug in the table above.
 - **Isolation:** each test file uses its own throw-away database.
 
-By default the tests start an in-memory MongoDB. To use an existing server instead (faster, and needed if the binary download is blocked on your network):
+By default the API tests start an in-memory MongoDB. To use an existing server instead (faster, and needed if the binary download is blocked on your network):
 
 ```bash
 MONGO_TEST_URI=mongodb://127.0.0.1:27017 npm test
@@ -290,39 +346,65 @@ MONGO_TEST_URI=mongodb://127.0.0.1:27017 npm test
 
 Set `TEST_LOG_LEVEL=error` to see server errors while debugging a test.
 
+**Web**
+
+- **HTTP client:** bearer token, refresh and retry, single-flight refresh under concurrent 401s, session expiry, kiosk unpairing on 401, and error mapping.
+- **Pure logic:** CSV import (school-list headers, DD/MM/YYYY dates, duplicate codes), check-in window messages, kiosk outcome messages, timezone-safe formatting, and the day summary sentence.
+- **Flows:** sign-in renders the real route table with only `fetch` faked (redirect, wrong password, then today's register). The kiosk test covers a keypad check-in, a rejected code with PIN, and an unpaired device.
+
+Run one workspace with `npm test --workspace=@attendance/web` (or `@attendance/api`).
+
 ---
 
-## Deployment (Render example)
+## Deployment (Render for the API, Vercel for the web)
+
+### API on Render
 
 | Setting           | Value                                                                                                         |
 | ----------------- | ------------------------------------------------------------------------------------------------------------- |
-| Build command     | `npm ci && npm run build`                                                                                     |
+| Build command     | `npm ci && npm run build --workspace=@attendance/api`                                                         |
 | Start command     | `npm start`                                                                                                   |
 | Health check path | `/api/health`                                                                                                 |
-| Environment       | `NODE_ENV=production`, `MONGO_URI`, `JWT_ACCESS_SECRET`, `CORS_ORIGINS=https://your-web-app`, `TRUST_PROXY=1` |
+| Environment       | `NODE_ENV=production`, `MONGO_URI`, `JWT_ACCESS_SECRET`, `CORS_ORIGINS=https://your-web-app`, `TRUST_PROXY=2` |
+
+### Web on Vercel
+
+1. In `apps/web/vercel.json`, replace `YOUR-API-HOST.onrender.com` with your Render hostname and commit.
+2. Import the repo in Vercel. Set **Root Directory** to `apps/web`. The Vite preset fills in `npm run build` and the `dist` output; Vercel installs from the repo root because it is an npm workspace.
+3. Set Node.js to **24.x** in the project settings.
+
+The rewrite in `vercel.json` serves the API under the web app's own domain (`/api/*`). The refresh cookie is then first-party, `COOKIE_SAMESITE=lax` works, and the kiosk camera gets the HTTPS it needs. The same file adds security headers and allows the camera for this site only.
 
 Notes:
 
-- **Cookies:** prefer serving the API under the web app's domain (for example a Vercel rewrite from `/api/*` to the Render URL). The refresh cookie then stays first-party and `COOKIE_SAMESITE=lax` works. If web and API must live on different sites, set `COOKIE_SAMESITE=none`. The cookie is then sent cross-site, which some browsers restrict.
-- **Atlas:** allow the host's outbound IPs in Network Access.
+- **`TRUST_PROXY=2`:** requests pass through Vercel's proxy and then Render's load balancer. With `1`, the API would see Vercel's address instead of the visitor's, and everyone would share one login rate limit. Use `1` only if browsers call Render directly.
+- **Different sites instead of the rewrite:**
+  - Set `VITE_API_URL` on Vercel, `COOKIE_SAMESITE=none` on Render, and `TRUST_PROXY=1`.
+  - Expect some browsers to block the cross-site refresh cookie, which shows up as being signed out on reload.
+- **Atlas:** allow Render's outbound IPs in Network Access.
 - **Several API instances:** rate limits use in-memory counters, so give them a shared store (for example `rate-limit-redis`) before scaling beyond one instance.
 
 ---
 
 ## Troubleshooting
 
-| Symptom                                      | Fix                                                                      |
-| -------------------------------------------- | ------------------------------------------------------------------------ |
-| `Invalid environment configuration` on start | `apps/api/.env` is missing or incomplete. Copy it from `.env.example`    |
-| `Could not connect to MongoDB`               | Is MongoDB running? Is `MONGO_URI` right? For Atlas, is your IP allowed? |
-| Tests hang on first run                      | The MongoDB test binary is downloading. Wait, or use `MONGO_TEST_URI`    |
-| Line-ending noise in `git diff` on Windows   | `.gitattributes` enforces LF. Run `git add --renormalize .` once         |
-| `EADDRINUSE :5000`                           | Another process uses the port. Change `PORT` in `.env`                   |
+| Symptom                                      | Fix                                                                                                       |
+| -------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `Invalid environment configuration` on start | `apps/api/.env` is missing or incomplete. Copy it from `.env.example`                                     |
+| `Could not connect to MongoDB`               | Is MongoDB running? Is `MONGO_URI` right? For Atlas, is your IP allowed?                                  |
+| Tests hang on first run                      | The MongoDB test binary is downloading. Wait, or use `MONGO_TEST_URI`                                     |
+| Line-ending noise in `git diff` on Windows   | `.gitattributes` enforces LF. Run `git add --renormalize .` once                                          |
+| `EADDRINUSE :5000`                           | Another process uses the port. Change `PORT` in `apps/api/.env` and `API_PROXY_TARGET` in `apps/web/.env` |
+| Web app says "Cannot reach the server"       | Is the API running? `npm run dev` starts both; check the `api` lines in the terminal                      |
+| Kiosk camera does not start                  | The page must be on HTTPS (or localhost), with camera permission allowed for the site                     |
+| Signed out on every reload in production     | The API is on a different site from the web app. Use the Vercel rewrite (see Deployment)                  |
+| `EBADENGINE` warnings on install             | Node is older than 22.22. Install Node 24 LTS                                                             |
 
 ---
 
 ## Roadmap
 
-1. **Web app** (`apps/web`, React + Vite + TypeScript): admin dashboard, daily view, member management with CSV import, reports, and a locked-down kiosk mode with QR scanning. This replaces `client/`.
-2. Notifications (SMS/email to parents or managers on absence), leave requests, geofenced mobile check-in.
-3. Audit log of admin changes.
+1. Notifications: SMS or email to parents or managers when someone is absent.
+2. Leave requests, and geofenced check-in from personal phones.
+3. Audit log of admin changes (corrections, archives, role changes).
+4. Offline kiosk: queue check-ins while the connection is down and sync them later.

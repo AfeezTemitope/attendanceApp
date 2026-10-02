@@ -1,16 +1,16 @@
 import js from '@eslint/js';
 import { defineConfig, globalIgnores } from 'eslint/config';
+import reactHooks from 'eslint-plugin-react-hooks';
+import reactRefresh from 'eslint-plugin-react-refresh';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 export default defineConfig([
-  // client/ is the legacy v1 frontend; it is replaced by apps/web in the next phase.
-  globalIgnores(['**/dist/**', '**/coverage/**', '**/node_modules/**', 'client/**', '.idea/**']),
+  globalIgnores(['**/dist/**', '**/coverage/**', '**/node_modules/**', '.idea/**']),
   js.configs.recommended,
   tseslint.configs.recommended,
   {
-    files: ['**/*.ts'],
-    languageOptions: { globals: globals.node },
+    files: ['**/*.{ts,tsx}'],
     rules: {
       '@typescript-eslint/consistent-type-imports': ['error', { fixStyle: 'inline-type-imports' }],
       '@typescript-eslint/no-unused-vars': [
@@ -22,7 +22,16 @@ export default defineConfig([
     },
   },
   {
-    files: ['**/test/**/*.ts'],
+    files: ['apps/api/**/*.ts', 'apps/web/*.config.ts', '*.js'],
+    languageOptions: { globals: globals.node },
+  },
+  {
+    files: ['apps/web/src/**/*.{ts,tsx}'],
+    extends: [reactHooks.configs.flat['recommended-latest'], reactRefresh.configs.vite],
+    languageOptions: { globals: globals.browser },
+  },
+  {
+    files: ['**/test/**/*.{ts,tsx}', '**/*.test.{ts,tsx}'],
     rules: { '@typescript-eslint/no-non-null-assertion': 'off' },
   },
 ]);

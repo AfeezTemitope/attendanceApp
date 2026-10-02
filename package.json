@@ -8,10 +8,12 @@
     "apps/*"
   ],
   "engines": {
-    "node": ">=22.12"
+    "node": ">=22.22"
   },
   "scripts": {
-    "dev": "npm run dev --workspace=@attendance/api",
+    "dev": "concurrently --kill-others-on-fail --names api,web --prefix-colors blue,magenta \"npm:dev:api\" \"npm:dev:web\"",
+    "dev:api": "npm run dev --workspace=@attendance/api",
+    "dev:web": "npm run dev --workspace=@attendance/web",
     "build": "npm run build --workspaces --if-present",
     "start": "npm run start --workspace=@attendance/api",
     "seed": "npm run seed --workspace=@attendance/api",
@@ -24,7 +26,10 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "concurrently": "^10.0.5",
     "eslint": "^10.11.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.7",
     "globals": "^17.0.0",
     "prettier": "^3.9.9",
     "typescript": "~6.0.3",
